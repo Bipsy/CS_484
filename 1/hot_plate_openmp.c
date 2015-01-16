@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ROW 4096
-#define COL 4096
+#define ROW 1024
+#define COL 1024
 
 //float plate[ROW][COL];
 //float copy[ROW][COL];
@@ -21,23 +21,31 @@ void printPlate(float plate[ROW][COL]) {
 }
 
 void initializePlate(float plate[ROW][COL]) {
+    int i, j;
     
-    //initialize top row (zero initialized)
+    //initialize top row
+    for (j = 0; j < COL; j++) {
+        plate[0][j] = 0;
+    }
 
     //initialize bottom row
-    for (int j = 0; j < COL; j++) {
-        plate[ROW-1][j] = 100.0f;
+    for (j = 0; j < COL; j++) {
+        plate[ROW-1][j] = 100;
     }
     
     //initialize main body
-    for (int i = 1; i < ROW-1; i++) {
-        for (int j = 1; j < COL-1; j++) {
-            plate[i][j] = 50.0f;
+    for (i = 1; i < ROW-1; i++) {
+        for (j = 0; j < COL; j++) {
+            if (j == 0 || j == COL-1) {
+                plate[i][j] = 0;
+            } else {
+                plate[i][j] = 50;
+            }
         }
     }
     
     //initialize row 400
-    for (int j = 0; j < 331; j++) {
+    for (j = 0; j < 331; j++) {
         plate[400][j] = 100;
     }
 
@@ -54,8 +62,9 @@ void simulate(float plate[ROW][COL], float copy[ROW][COL]) {
     do {
         flucuating = false;
         memcpy(copy, plate, ROW*COL*sizeof(float));
-        for (int i = 1; i < ROW-1; i++) {
-            for (int j = 1; j < COL-1; j++) {
+        int i, j;
+        for (i = 1; i < ROW-1; i++) {
+            for (j = 1; j < COL-1; j++) {
                 if (i == 400 && j <= 330) {
                     j = 330;
                     continue;
@@ -72,8 +81,8 @@ void simulate(float plate[ROW][COL], float copy[ROW][COL]) {
             }
         }
 
-        for (int i = 2; i < ROW-2; i++) {
-            for (int j = 2; j < COL-2; j++) {
+        for (i = 2; i < ROW-2; i++) {
+            for (j = 2; j < COL-2; j++) {
                 if (i == 400 && j <= 330) {
                     j = 330;
                     continue;
