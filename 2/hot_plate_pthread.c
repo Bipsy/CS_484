@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include "pthread_barrier.h"
 
 #define ROW 4096
 #define COL 4096
@@ -13,6 +14,7 @@
 typedef struct Arg {
     int starting_row;
     int return_value;
+    pthread_barrier_t* barrier;
 } Arg;
     
 /*Globals*/
@@ -57,6 +59,7 @@ void initializePlate(float plate[ROW][COL]) {
 
 void* thread_simulate(void* arg) {
     Arg* param = (Arg*) arg;
+    pthread_barrier_t* barrier = (pthread_barrier_t*) param->barrier;
     int starting_row = param->starting_row;
     bool steady_state = true;
     int iterations = 0;
@@ -87,6 +90,8 @@ void* thread_simulate(void* arg) {
                 }
             }
         }
+
+        pthread_barrier_wait(barrier);
 
         for (int i = starting_row; 
              i < starting_row+WORK_LOAD && i < ROW-1; 
@@ -124,9 +129,13 @@ int main(int argc, char** argv) {
     initializePlate(plate);
     pthread_t threads[N_THREADS];
     Arg args[N_THREADS];
+    pthread_barrier_t barrier;
+
+    pthread_barrier_init(&barrier, NULL, N_THREADS);
     
     for (int i = 0; i < N_THREADS; i++) {
         args[i].starting_row = WORK_LOAD * i;
+        args[i].barrier = &barrier;
         pthread_create(&threads[i], NULL, thread_simulate, &args[i]);
     }
 
@@ -141,5 +150,6 @@ int main(int argc, char** argv) {
         }
     }
     printf("Iterations: %d\n", max_iterations);
+    pthread_barrier_destroy(&barrier);
     return 0;
 }
