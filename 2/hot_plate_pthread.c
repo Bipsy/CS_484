@@ -8,13 +8,16 @@
 
 #define ROW 4096
 #define COL 4096
-#define N_THREADS 4
+#define N_THREADS 2
 #define WORK_LOAD (ROW/N_THREADS)
 
 typedef struct Arg {
     int starting_row;
-    int return_value;
     pthread_barrier_t* barrier;
+    bool* converged;
+    bool* all_converged;
+    int thread_id;
+    int iterations;
 } Arg;
     
 /*Globals*/
@@ -61,11 +64,11 @@ void* thread_simulate(void* arg) {
     Arg* param = (Arg*) arg;
     pthread_barrier_t* barrier = (pthread_barrier_t*) param->barrier;
     int starting_row = param->starting_row;
-    bool steady_state = true;
+    int thread_id = param->thread_id;
+    bool* all_converged = param->all_converged;
     int iterations = 0;
 
     do {
-        steady_state = true;
         memcpy(&copy[starting_row][0], &plate[starting_row][0], 
                WORK_LOAD*COL*sizeof(float));
         for (int i = starting_row; 
@@ -112,16 +115,28 @@ void* thread_simulate(void* arg) {
                     float south = plate[i+1][j];
                     float average = (north + west + east + south) / 4;
                     if (fabsf(plate[i][j] - average) >= 0.1) {
-                        steady_state = false;
+                        param->converged[thread_id] = false;
                         goto breakout;
                     }
                 }
             }
         }
+        param->converged[thread_id] = true;
         breakout:
-        iterations++;
-    } while (!steady_state);
-    param->return_value = iterations;
+        pthread_barrier_wait(barrier);
+        if (thread_id == 0) {
+            bool converged_accum = true;
+            for (int i = 0; i < N_THREADS; i++) {
+                converged_accum = converged_accum && param->converged[i];
+            }            
+            iterations++;
+            if (converged_accum == true) {
+                param->iterations = iterations;
+                *all_converged = converged_accum;
+            } 
+        }
+        pthread_barrier_wait(barrier);
+    } while (!(*all_converged));
     return NULL;
 }
 
@@ -129,13 +144,20 @@ int main(int argc, char** argv) {
     initializePlate(plate);
     pthread_t threads[N_THREADS];
     Arg args[N_THREADS];
+    static bool converged[N_THREADS];
     pthread_barrier_t barrier;
+    bool all_converged = false;
+    int iterations = 0;
 
     pthread_barrier_init(&barrier, NULL, N_THREADS);
     
     for (int i = 0; i < N_THREADS; i++) {
         args[i].starting_row = WORK_LOAD * i;
         args[i].barrier = &barrier;
+        args[i].converged = converged;
+        args[i].all_converged = &all_converged;
+        args[i].thread_id = i;
+        args[i].iterations = iterations;
         pthread_create(&threads[i], NULL, thread_simulate, &args[i]);
     }
 
@@ -143,13 +165,7 @@ int main(int argc, char** argv) {
         pthread_join(threads[i], NULL);
     }
 
-    int max_iterations = 0;
-    for (int i = 0; i < N_THREADS; i++) {
-        if (args[i].return_value > max_iterations) {
-            max_iterations = args[i].return_value;
-        }
-    }
-    printf("Iterations: %d\n", max_iterations);
+    printf("Iterations: %d\n", args[0].iterations);
     pthread_barrier_destroy(&barrier);
     return 0;
 }
